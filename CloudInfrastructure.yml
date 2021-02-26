@@ -1,0 +1,234 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+ License: Apache-2.0
+Description: This template will create a VPC, 2 public subnets, 2 private subnets in 
+  2 differents availability zone, route tables, NAT gateway, internet gateway.
+
+Parameters:
+  MyVpCidr:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.10.0.0/16
+
+  MyPublicsubnet1cidr:
+    Description: The CIDR of the public subnet 1
+    Type: String
+    Default: 10.10.2.0/24
+
+  MyPublicsubnet2cidr:
+    Description: The CIDR of the public subnet 2
+    Type: String
+    Default: 10.10.4.0/24
+
+  MyPrivatesubnet1cidr:
+    Description: The CIDR of the private subnet 1
+    Type: String
+    Default: 10.10.1.0/24
+
+  MyPrivatesubnet2cidr:
+    Description: The CIDR of the private subnet 2
+    Type: String
+    Default: 10.10.3.0/24  
+
+Resources:
+  #VPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref MyVpCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: MyVPC
+
+  # Internet gateway
+  MyIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyIGW
+  
+  # Attach the IGW to the VPC
+  MyIGWattachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MyIGW
+      VpcId: !Ref MyVPC
+
+ # Public Subnet 1  
+  MyPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref MyPublicsubnet1cidr
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region' 
+      Tags:
+        - Key: Name
+          Value: MyPublicSubnet1
+
+   # Public Subnet 2  
+  MyPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref MyPublicsubnet2cidr
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region' 
+      Tags:
+        - Key: Name
+          Value: MyPublicSubnet2
+
+  # Private Subnet 1
+  MyPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref MyPrivatesubnet1cidr
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region' 
+      Tags:
+        - Key: Name
+          Value: MyPrivateSubnet1
+
+    # Private Subnet 2
+  MyPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: !Ref MyPrivatesubnet2cidr
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region' 
+      Tags:
+        - Key: Name
+          Value: MyPrivateSubnet2
+
+  # public Route table
+  MyPublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: MyPublicRT
+
+  #adding the public route to the route table
+  MyPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MyIGWattachment
+    Properties:
+      RouteTableId: !Ref MyPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyIGW
+  
+  # nat gateway iep
+  MyNatGWeip:
+    Type: AWS::EC2::EIP
+    Properties: 
+      Domain: vpc
+      Tags: 
+        - Key: name
+          Value: MyNatGWeip
+
+  # NAT Gateway
+  MyNatGW:
+    Type: AWS::EC2::NatGateway
+    DependsOn: MyNatGWeip
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+        - MyNatGWeip
+        - AllocationId
+      SubnetId:
+        Ref: MyPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: MyNatGW
+
+  # Private Route table
+  MyPrivateRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: MyPrivateRT
+  
+  # Private Route table with NAT gateway association 
+  MyPrivateRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MyNatGW
+    Properties:
+      RouteTableId: !Ref MyPrivateRT
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref MyNatGW
+
+  # Public subnet 1 route table association
+  MyPublicSubnet1RTAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref MyPublicSubnet1
+      RouteTableId: !Ref MyPublicRT
+
+  # Public subnet 2 route table association
+  MyPublicSubnet2RTAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref MyPublicSubnet2
+      RouteTableId: !Ref MyPublicRT
+  
+  # Private subnet 1 route table association
+  MyPrivateSubne1tRTAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref MyPrivateSubnet1
+      RouteTableId: !Ref MyPrivateRT
+
+  # Private subnet 2 route table association
+  MyPrivateSubne2tRTAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref MyPrivateSubnet2
+      RouteTableId: !Ref MyPrivateRT
+
+Outputs:
+  MyvpcID:
+    Description: VPC ID
+    Value: !Ref MyVPC
+    Export:
+      Name: !Sub '${AWS::StackName}-VPCID'
+
+  MyPublicSubnet1ID:
+    Description: The subnet ID to use for public web servers
+    Value: !Ref MyPublicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PubSubnet1ID'
+
+  MyPublicSubnet2ID:
+    Description: The subnet ID to use for public web servers
+    Value: !Ref MyPublicSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PubSubnet2ID'
+
+  MyPrivateSubnet1ID:
+    Description: The subnet ID to use for private web servers
+    Value: !Ref MyPrivateSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivSubnet1ID'
+
+  MyPrivateSubnet2ID:
+    Description: The subnet ID to use for private web servers
+    Value: !Ref MyPrivateSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivSubnet2ID'

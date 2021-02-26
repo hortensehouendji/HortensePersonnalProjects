@@ -1,0 +1,67 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+ License: Apache-2.0
+Description: This template will launch instances in the Public and private Subnets in us-east-1 Region
+
+# Parameters
+Parameters:
+  # Number of Linux instances to Launch
+  NbLinuxInstances:
+    Description: Number of Linux Instances to launch
+    Type: String
+    Default: 1
+  
+  # Number of Ubuntu instances to Launch
+  NbLinuxInstances:
+    Description: Number of Linux Instances to launch
+    Type: String
+    Default: 1
+  
+  # Number of Windows instances to Launch
+  NbLinuxInstances:
+    Description: Number of Linux Instances to launch
+    Type: String
+    Default: 1
+  
+  # key Name
+  MyKeyPair:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+# Ressources
+Resources:
+
+  # Role to access the instances via SSM
+  MyRootRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+  
+  # Profile to access the instances via SSM           
+  RootInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Path: /
+      Roles:
+        - !Ref MyRootRole
+
+
